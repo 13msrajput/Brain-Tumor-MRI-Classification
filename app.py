@@ -40,7 +40,7 @@ from PIL import Image, UnidentifiedImageError
 # =============================================================================
 st.set_page_config(
     page_title="Brain Tumor MRI Classifier",
-    page_icon="🧠",
+    page_icon=":material/neurology:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -56,6 +56,11 @@ MODELS_DIR = "models"
 BEST_MODEL_FILE = os.path.join(MODELS_DIR, "best_model.h5")
 CLASS_INFO_FILE = os.path.join(MODELS_DIR, "class_names.json")
 COMPARISON_FILE = os.path.join(MODELS_DIR, "model_comparison.csv")
+
+# --- developer option: show a model switcher in the sidebar ---
+# Off by default so users only see the deployed model. Turn on locally to compare the
+# models stored in models/ :   PowerShell ->  $env:SHOW_MODEL_SWITCHER="1"; streamlit run app.py
+SHOW_MODEL_SWITCHER = os.getenv("SHOW_MODEL_SWITCHER", "0") == "1"
 
 # --- model input (must match the training notebook) ---
 IMG_SIZE = (224, 224)
@@ -243,7 +248,17 @@ header[data-testid="stHeader"] { background: transparent; }
 .notice.warn { border-color: rgba(251,191,36,.45); background: rgba(251,191,36,.09); }
 .notice.info { border-color: rgba(96,165,250,.40); background: rgba(96,165,250,.08); }
 .notice.good { border-color: rgba(52,211,153,.40); background: rgba(52,211,153,.08); }
-.notice .ico { font-size: 1.1rem; line-height: 1.4; }
+.notice .ico { display: flex; flex: none; margin-top: 1px; color: var(--muted); }
+.notice.warn .ico { color: #FBBF24; } .notice.info .ico { color: #60A5FA; } .notice.good .ico { color: #34D399; }
+.svg-ico { display: block; }
+.chip .svg-ico { display: inline-block; vertical-align: -3px; margin-right: 5px; }
+.chip.ok .svg-ico { color: #34D399; } .chip.bad .svg-ico { color: #FBBF24; }
+.side-model { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: .75rem .9rem; }
+.side-model .badge { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.side-model .n { font-weight: 700; font-size: .95rem; color: var(--text); line-height: 1.2; }
+.side-model .m { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+.brand .logo { color: #fff; }
 .notice b { font-weight: 700; }
 
 .section-title { font-size: 1.05rem; font-weight: 700; color: var(--text); margin: 1.4rem 0 .7rem 0; letter-spacing: -.01em; }
@@ -355,10 +370,35 @@ def section(title: str, hint: str = "") -> None:
     render(f'<div class="section-title">{html.escape(title)}{small}</div>')
 
 
-def notice(text: str, kind: str = "info", icon: str = "ℹ️") -> None:
-    """Coloured information box. `text` may contain simple HTML such as <b>."""
+ICONS = {
+    # simple outline icons (24x24 grid, drawn with the current text colour)
+    "info": '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+    "alert": '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    "check": '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    "search": '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+    "upload": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+    "layers": '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+    "droplet": '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>',
+    "maximize": '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>',
+    "shield": '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    "flag": '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+    "pulse": '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    "award": '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+}
+
+
+def icon_svg(name: str, size: int = 18) -> str:
+    """Inline SVG icon that takes the colour of the surrounding text."""
+    return (
+        f'<svg class="svg-ico" width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{ICONS[name]}</svg>'
+    )
+
+
+def notice(text: str, kind: str = "info", icon: str = "info") -> None:
+    """Coloured information box. `icon` is a key of ICONS; `text` may contain simple HTML such as <b>."""
     render(
-        f'<div class="notice {kind}"><span class="ico">{icon}</span><span>{text}</span></div>'
+        f'<div class="notice {kind}"><span class="ico">{icon_svg(icon, 20)}</span><span>{text}</span></div>'
     )
 
 
@@ -666,12 +706,18 @@ if BEST_MODEL_FILE in model_files:  # best model first
     model_files.remove(BEST_MODEL_FILE)
     model_files.insert(0, BEST_MODEL_FILE)
 
+class_info = load_class_info()
+class_names: list[str] = class_info["class_names"]
+
+# ---------- sidebar, part 1: brand, appearance and (optional) model switcher ----------
+selected_model_path = model_files[
+    0
+]  # the deployed model (best_model.h5 when it exists)
 with st.sidebar:
     render(
-        '<div class="brand"><div class="logo">🧠</div><div><div class="t">NeuroScan AI</div>'
+        f'<div class="brand"><div class="logo">{icon_svg("pulse", 22)}</div><div><div class="t">NeuroScan AI</div>'
         f'<div class="s">MRI Classifier · v{APP_VERSION}</div></div></div>'
     )
-
     render('<div class="side-label">Appearance</div>')
     st.radio(
         "Theme",
@@ -681,42 +727,20 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
-    render('<div class="side-label">Model</div>')
-    if len(model_files) > 1:
+    if SHOW_MODEL_SWITCHER and len(model_files) > 1:
+        render('<div class="side-label">Model</div>')
         selected_model_path = st.radio(
             "Active model",
             model_files,
             format_func=lambda path: (
-                "⭐ Best model (recommended)"
+                ":material/workspace_premium: Best model (recommended)"
                 if path == BEST_MODEL_FILE
                 else os.path.basename(path).replace(".h5", "")
             ),
             label_visibility="collapsed",
         )
-    else:
-        selected_model_path = model_files[0]
-        st.caption("Using the deployed model.")
 
-    render('<div class="side-label">Analysis settings</div>')
-    low_threshold = st.slider(
-        "Low-confidence warning below", 0.30, 0.95, DEFAULT_LOW_CONFIDENCE, 0.05
-    )
-    show_cam = st.toggle(
-        "Explain with Grad-CAM heatmap",
-        value=True,
-        help="Highlights the regions that influenced the prediction.",
-    )
-    overlay_opacity = st.slider(
-        "Heatmap strength", 0.2, 1.0, 0.6, 0.05, disabled=not show_cam
-    )
-
-    st.divider()
-    st.caption("For education and demonstration only. Not a medical device.")
-
-# ---------- load class names and the model (with friendly errors) ----------
-class_info = load_class_info()
-class_names: list[str] = class_info["class_names"]
-
+# ---------- load the model (with friendly errors) ----------
 try:
     model = load_model_cached(selected_model_path)
 except ImportError:
@@ -737,6 +761,33 @@ if model.output_shape[-1] != len(class_names):
 
 model_name = model_display_name(model)
 n_params = model.count_params()
+model_size_mb = os.path.getsize(selected_model_path) / (1024 * 1024)
+
+# ---------- sidebar, part 2: active model card and analysis settings ----------
+with st.sidebar:
+    if not (SHOW_MODEL_SWITCHER and len(model_files) > 1):
+        render('<div class="side-label">Model</div>')
+    render(
+        f'<div class="side-model"><div class="badge">{icon_svg("award", 18)}</div><div>'
+        f'<div class="n">{html.escape(model_name)}</div>'
+        f'<div class="m">{n_params / 1e6:.1f}M parameters · {model_size_mb:.0f} MB</div></div></div>'
+    )
+
+    render('<div class="side-label">Analysis settings</div>')
+    low_threshold = st.slider(
+        "Low-confidence warning below", 0.30, 0.95, DEFAULT_LOW_CONFIDENCE, 0.05
+    )
+    show_cam = st.toggle(
+        "Explain with Grad-CAM heatmap",
+        value=True,
+        help="Highlights the regions that influenced the prediction.",
+    )
+    overlay_opacity = st.slider(
+        "Heatmap strength", 0.2, 1.0, 0.6, 0.05, disabled=not show_cam
+    )
+
+    st.divider()
+    st.caption("For education and demonstration only. Not a medical device.")
 
 # =============================================================================
 # 8. HERO + DISCLAIMER
@@ -759,11 +810,16 @@ notice(
     "<b>For education and demonstration only.</b> This is not a medical device. Never use it for diagnosis or "
     "treatment decisions. Always consult a qualified radiologist or doctor.",
     kind="warn",
-    icon="⚠️",
+    icon="alert",
 )
 
 tab_single, tab_batch, tab_insights, tab_about = st.tabs(
-    ["🔬  Analyze", "🗂️  Batch", "📊  Model Insights", "ℹ️  About"]
+    [
+        ":material/biotech: Analyze",
+        ":material/stacks: Batch",
+        ":material/query_stats: Model Insights",
+        ":material/info: About",
+    ]
 )
 
 # =============================================================================
@@ -780,7 +836,7 @@ with tab_single:
         notice(
             "Upload an MRI image to get a prediction. Your image is processed in memory and is not stored.",
             kind="info",
-            icon="👆",
+            icon="upload",
         )
     elif uploaded.size > MAX_UPLOAD_MB * 1024 * 1024:
         st.error(
@@ -885,20 +941,20 @@ with tab_single:
                 notice(
                     f"The model is not very confident (below {low_threshold * 100:.0f}%). Treat this prediction with extra caution.",
                     kind="warn",
-                    icon="⚠️",
+                    icon="alert",
                 )
             elif summary["margin"] < CLOSE_CALL_MARGIN:
                 notice(
                     f"Close call: <b>{html.escape(pretty(summary['runner_up']))}</b> is also likely "
                     f"({summary['runner_up_conf'] * 100:.1f}%). Review this scan carefully.",
                     kind="info",
-                    icon="🔎",
+                    icon="search",
                 )
 
         # ----- quality checks -----
         checks = image_checks(image, uploaded.size)
         chips = "".join(
-            f'<span class="chip">{"✅" if ok else "⚠️"} {html.escape(title)}: <b>{html.escape(detail)}</b></span>'
+            f'<span class="chip {"ok" if ok else "bad"}">{icon_svg("check" if ok else "alert", 15)}{html.escape(title)}: <b>{html.escape(detail)}</b></span>'
             for title, detail, ok in checks
         )
         render(f'<div class="chips" style="margin-top:6px">{chips}</div>')
@@ -906,13 +962,13 @@ with tab_single:
             notice(
                 "This looks like a colour image. The model was trained on grayscale MRI scans, so the result may be unreliable.",
                 kind="warn",
-                icon="🎨",
+                icon="droplet",
             )
         if not checks[0][2]:
             notice(
                 f"The image is very small (under {MIN_SIDE_PX}px). Details are lost when it is enlarged, so the result may be unreliable.",
                 kind="warn",
-                icon="📏",
+                icon="maximize",
             )
 
         # ----- probabilities -----
@@ -951,19 +1007,21 @@ with tab_single:
         }
         col_a, col_b, _ = st.columns([1, 1, 2])
         col_a.download_button(
-            "⬇️ Report (JSON)",
+            "Report (JSON)",
             json.dumps(report, indent=2),
             f"{os.path.splitext(uploaded.name)[0]}_report.json",
             "application/json",
             on_click="ignore",
+            icon=":material/download:",
         )
         if show_cam and cam is not None:
             col_b.download_button(
-                "⬇️ Heatmap (PNG)",
+                "Heatmap (PNG)",
                 image_to_png_bytes(overlay_img),
                 f"{os.path.splitext(uploaded.name)[0]}_gradcam.png",
                 "image/png",
                 on_click="ignore",
+                icon=":material/download:",
             )
 
     # ----- session history -----
@@ -974,7 +1032,7 @@ with tab_single:
         frame["Prediction"] = frame["Prediction"].map(pill)
         frame["Confidence"] = frame["Confidence"].map(lambda v: f"{v:.1f}%")
         render(html_table(frame, raw_columns=("Prediction",)))
-        if st.button("Clear history"):
+        if st.button("Clear history", icon=":material/delete:"):
             st.session_state["history"] = []
             st.session_state.pop("last_token", None)
             st.rerun()
@@ -995,7 +1053,7 @@ with tab_batch:
         notice(
             "Upload multiple scans to classify them all at once and download the results as a CSV file.",
             kind="info",
-            icon="🗂️",
+            icon="layers",
         )
     else:
         if len(files) > MAX_BATCH_FILES:
@@ -1041,7 +1099,7 @@ with tab_batch:
             kpi_grid(
                 [
                     (
-                        "Images analysed",
+                        "Images analyzed",
                         str(len(results_df)),
                         f"{len(skipped)} skipped" if skipped else "all readable",
                     ),
@@ -1118,11 +1176,12 @@ with tab_batch:
             export["Prediction"] = export["Prediction"].map(pretty)
             export["Runner-up"] = export["Runner-up"].map(pretty)
             st.download_button(
-                "⬇️ Download results (CSV)",
+                "Download results (CSV)",
                 export.to_csv(index=False),
                 "batch_predictions.csv",
                 "text/csv",
                 on_click="ignore",
+                icon=":material/download:",
             )
 
         if skipped:
@@ -1135,7 +1194,6 @@ with tab_batch:
 # =============================================================================
 with tab_insights:
     section("Model card", "the model currently running in this app")
-    model_size_mb = os.path.getsize(selected_model_path) / (1024 * 1024)
     kpi_grid(
         [
             ("Architecture", model_name, ""),
@@ -1251,7 +1309,7 @@ with tab_insights:
         "optimistic for brand-new patients. The test set is small (246 images), and class differences in brightness and scan style "
         "mean a model may partly learn the scan appearance. The model has not been validated on other hospitals or scanners.",
         kind="info",
-        icon="🧪",
+        icon="flag",
     )
 
 # =============================================================================
@@ -1280,7 +1338,7 @@ with tab_about:
         "This app is a student project built to demonstrate deep learning on medical images. Predictions can be wrong, "
         "especially for scans unlike the training data. It must not be used to make medical decisions.",
         kind="warn",
-        icon="🩺",
+        icon="shield",
     )
 
     section("Tech stack")

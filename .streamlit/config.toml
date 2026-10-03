@@ -5,6 +5,10 @@ base = "dark"
 # accent colour of sliders, radio buttons and toggles
 primaryColor = "#6366F1"
 
+[server]
+# largest file a user can upload (MB); the uploader shows this limit
+maxUploadSize = 10
+
 [browser]
 # do not send anonymous usage statistics
 gatherUsageStats = false
