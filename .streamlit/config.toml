@@ -1,0 +1,10 @@
+# Streamlit settings for the Brain Tumor MRI app
+[theme]
+# the app is designed dark-first; light mode is handled by the in-app theme switch
+base = "dark"
+# accent colour of sliders, radio buttons and toggles
+primaryColor = "#6366F1"
+
+[browser]
+# do not send anonymous usage statistics
+gatherUsageStats = false

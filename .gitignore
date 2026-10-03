@@ -1,0 +1,14 @@
+data/
+Tumour/
+*.zip
+models/*
+!models/best_model.h5
+!models/class_names.json
+.venv/
+venv/
+.vscode/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db

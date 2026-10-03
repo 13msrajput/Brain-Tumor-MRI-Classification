@@ -1,0 +1,11 @@
+{
+  "class_names": [
+    "glioma",
+    "meningioma",
+    "no_tumor",
+    "pituitary"
+  ],
+  "best_model": "ResNet50V2",
+  "img_height": 224,
+  "img_width": 224
+}
