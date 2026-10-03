@@ -6,7 +6,7 @@
 
 An end-to-end deep learning project that classifies brain MRI images into four categories — Glioma, Meningioma, Pituitary tumour and No Tumor — by comparing a custom CNN built from scratch against four ImageNet-pretrained models (transfer learning), and deploying the best model as an interactive Streamlit app.
 
-**[Live App →](https://Brain-Tumor-MRI-Classification.streamlit.app)**
+**[Live App →](https://brain-tumor-mri-classification-system.streamlit.app)**
 
 </div>
 
@@ -62,7 +62,7 @@ Every image and label was validated before modelling:
 
 ### Overlap Between Splits (important finding)
 
-The file names contain the ID of the original scan. About **19.3% of validation images (97 of 502)** and **23.2% of test images (57 of 246)** share a scan ID with a training image. These are most likely augmented copies of the same scan made by the dataset provider. The official split was kept, but the reported scores are probably somewhat optimistic compared with completely new patients (see [Limitations](#limitations)).
+The file names contain the ID of the original scan. About **19.3% of validation images (97 of 502)** and **23.2% of test images (57 of 246)** share a scan ID with a training image. These are most likely augmented copies of the same scan made by the dataset provider. The official split was kept, but the reported scores are probably somewhat optimistic compared with completely new patients.
 
 ---
 
@@ -190,16 +190,14 @@ Invalid or unreadable files and oversized uploads are rejected with a clear mess
 
 ```
 Brain-Tumor-MRI-Classification/
-├── images/                                  # All charts saved by the notebook
+├── .streamlit
+├── images/                              
 ├── models/
-│   ├── best_model.h5                        # Model loaded by the app
-│   ├── class_names.json                     # Class order used by the models
-│   └── model_comparison.csv                 # Comparison table shown in the app
 ├── .gitignore
 ├── README.md
-├── app.py                                   # Streamlit web application
+├── app.py                                 
 ├── requirements.txt
-└── Brain_Tumor_MRI_Classification.ipynb     # Full project: EDA → preprocessing → models → evaluation → comparison
+└── brain_tumor_mri_classification.ipynb    
 ```
 
 The dataset (`data/`) and the other trained models (`custom_cnn.h5`, `mobilenetv2.h5`, `resnet50v2.h5`, `inceptionv3.h5`, `efficientnetb0.h5`) are not stored in this repository because of GitHub's file-size limit. They are produced by running the notebook.
@@ -222,13 +220,6 @@ The app needs `models/best_model.h5` and `models/class_names.json`. To retrain e
 3. Set `QUICK_RUN = True` in the configuration cell for a very fast test of the whole notebook, then set it back to `False` for the real run.
 
 ---
-
-## Limitations
-
-- **Possible overlap between splits** — about 19% of validation and 23% of test images share a source-scan ID with a training image, so the scores are likely optimistic for brand-new patients. A patient-level split would be a more honest test.
-- **Small test set** — with 246 images, one wrong prediction moves accuracy by about 0.4 points, so small differences between models are not meaningful.
-- **Scan-style shortcuts** — class differences in brightness and style mean a model may partly learn the scan appearance instead of the tumour.
-- **Not clinically validated** — the models were not tested on scans from other hospitals or scanners.
 
 ### Future Work
 
